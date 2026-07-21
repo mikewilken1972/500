@@ -8,48 +8,60 @@ import Setup from './components/Setup';
 import ScoreBoard from './components/ScoreBoard';
 import AddRound from './components/AddRound';
 import { Player, Round, GameState } from './types';
+import { db } from './lib/firebase';
+import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 
-const STORAGE_KEY = '500_game_state';
+const GAME_DOC_ID = 'active_game';
 
 export default function App() {
-  const [gameState, setGameState] = useState<GameState>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing saved game state', e);
-      }
-    }
-    return {
-      players: [],
-      rounds: [],
-      status: 'setup'
-    };
+  const [gameState, setGameState] = useState<GameState>({
+    players: [],
+    rounds: [],
+    status: 'setup'
   });
 
   const [isAddingRound, setIsAddingRound] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
-  }, [gameState]);
+    const unsub = onSnapshot(doc(db, 'games', GAME_DOC_ID), (docSnap) => {
+      if (docSnap.exists()) {
+        setGameState(docSnap.data() as GameState);
+      }
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const updateFirebase = async (newState: GameState) => {
+    try {
+      await setDoc(doc(db, 'games', GAME_DOC_ID), {
+        ...newState,
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error('Error updating Firebase', e);
+    }
+  };
 
   const handleStart = (players: Player[]) => {
-    setGameState({
+    const newState: GameState = {
       players,
       rounds: [],
       status: 'playing'
-    });
+    };
+    updateFirebase(newState);
   };
 
   const handleReset = () => {
     if (confirm('Er du sikker på, at du vil slette spillet og starte forfra?')) {
-      setGameState({
+      const newState: GameState = {
         players: [],
         rounds: [],
         status: 'setup'
-      });
-      localStorage.removeItem(STORAGE_KEY);
+      };
+      updateFirebase(newState);
     }
   };
 
@@ -59,19 +71,32 @@ export default function App() {
       scores
     };
 
-    setGameState(prev => ({
-      ...prev,
-      rounds: [...prev.rounds, newRound]
-    }));
+    const newState: GameState = {
+      ...gameState,
+      rounds: [...gameState.rounds, newRound]
+    };
+    updateFirebase(newState);
     setIsAddingRound(false);
   };
 
   const handleDeleteRound = (roundId: string) => {
-    setGameState(prev => ({
-      ...prev,
-      rounds: prev.rounds.filter(r => r.id !== roundId)
-    }));
+    const newState: GameState = {
+      ...gameState,
+      rounds: gameState.rounds.filter(r => r.id !== roundId)
+    };
+    updateFirebase(newState);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-400 font-mono text-xs uppercase tracking-widest">Henter data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 overflow-hidden">

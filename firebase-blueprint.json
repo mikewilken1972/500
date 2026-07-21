@@ -1,0 +1,33 @@
+{
+  "collections": {
+    "games": {
+      "documents": {
+        "active": {
+          "fields": {
+            "players": {
+              "arrayValue": {
+                "values": [
+                  {
+                    "mapValue": {
+                      "fields": {
+                        "id": { "stringValue": "p1" },
+                        "name": { "stringValue": "Spiller 1" }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "rounds": {
+              "arrayValue": {
+                "values": []
+              }
+            },
+            "status": { "stringValue": "setup" },
+            "updatedAt": { "timestampValue": "2026-07-21T12:00:00Z" }
+          }
+        }
+      }
+    }
+  }
+}

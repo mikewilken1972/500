@@ -26,3 +26,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
           server-dir: /500/
+          protocol: ftp
