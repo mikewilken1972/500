@@ -9,7 +9,10 @@ export interface Round {
 }
 
 export interface GameState {
+  id: string;
+  name: string;
   players: Player[];
   rounds: Round[];
   status: 'setup' | 'playing' | 'finished';
+  createdAt?: any;
 }

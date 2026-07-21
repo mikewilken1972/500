@@ -2,6 +2,16 @@ import React from 'react';
 import { Player, Round } from '../types';
 import { motion } from 'motion/react';
 import { Trash2, RotateCcw } from 'lucide-react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts';
 
 interface ScoreBoardProps {
   players: Player[];
@@ -10,6 +20,8 @@ interface ScoreBoardProps {
   onReset: () => void;
   onDeleteRound: (roundId: string) => void;
 }
+
+const PLAYER_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#64748b', '#ef4444'];
 
 export default function ScoreBoard({ players, rounds, onAddRound, onReset, onDeleteRound }: ScoreBoardProps) {
   const totals = players.reduce((acc, player) => {
@@ -21,6 +33,21 @@ export default function ScoreBoard({ players, rounds, onAddRound, onReset, onDel
   const winner = hasWinner 
     ? players.reduce((prev, curr) => (totals[curr.id] > totals[prev.id] ? curr : prev))
     : null;
+
+  // Prepare chart data: Cumulative scores after each round
+  const chartData = [
+    { name: 'Start', ...players.reduce((acc, p) => ({ ...acc, [p.name]: 0 }), {}) },
+    ...rounds.map((_, index) => {
+      const dataPoint: any = { name: `Runde ${index + 1}` };
+      players.forEach(player => {
+        const cumulativeScore = rounds
+          .slice(0, index + 1)
+          .reduce((sum, r) => sum + (r.scores[player.id] || 0), 0);
+        dataPoint[player.name] = cumulativeScore;
+      });
+      return dataPoint;
+    })
+  ];
 
   return (
     <div className="grid grid-cols-12 h-full gap-0 overflow-hidden">
@@ -104,7 +131,7 @@ export default function ScoreBoard({ players, rounds, onAddRound, onReset, onDel
       </aside>
 
       {/* Main Content: Player Scores */}
-      <div className="col-span-12 lg:col-span-9 p-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-100 overflow-y-auto">
+      <div className="col-span-12 lg:col-span-9 p-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-100 overflow-y-auto content-start">
         {players.map((player) => {
           const score = totals[player.id];
           const isWinner = score >= 500;
@@ -115,7 +142,7 @@ export default function ScoreBoard({ players, rounds, onAddRound, onReset, onDel
             <motion.div 
               key={player.id}
               layout
-              className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between relative overflow-hidden h-[240px]"
+              className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between relative overflow-hidden h-[200px]"
             >
               <div className="z-10">
                 <div className="flex justify-between items-start mb-2">
@@ -131,20 +158,79 @@ export default function ScoreBoard({ players, rounds, onAddRound, onReset, onDel
                   )}
                 </div>
                 <div className="text-2xl font-bold text-slate-800">{player.name}</div>
+                {!isWinner && (
+                  <div className="text-[10px] font-bold text-indigo-500 mt-1 uppercase tracking-wider">
+                    Mangler {500 - score} point
+                  </div>
+                )}
               </div>
 
-              <div className={`text-8xl font-black tracking-tighter ${score < 0 ? 'text-rose-600 italic' : 'text-slate-900'}`}>
+              <div className={`text-6xl font-black tracking-tighter ${score < 0 ? 'text-rose-600 italic' : 'text-slate-900'}`}>
                 {score}
               </div>
 
               <div className="absolute -bottom-4 -right-4 opacity-[0.03] pointer-events-none">
-                <svg width="160" height="160" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
               </div>
             </motion.div>
           );
         })}
+
+        {/* Development Chart */}
+        <div className="col-span-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mt-4">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Pointudvikling</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1e293b', 
+                    border: 'none', 
+                    borderRadius: '12px',
+                    color: '#f8fafc',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                  }}
+                  itemStyle={{ padding: '2px 0' }}
+                  cursor={{ stroke: '#e2e8f0', strokeWidth: 2 }}
+                />
+                <Legend 
+                  verticalAlign="top" 
+                  align="right" 
+                  iconType="circle"
+                  wrapperStyle={{ paddingBottom: '20px', fontSize: '12px', fontWeight: 600 }}
+                />
+                {players.map((player, index) => (
+                  <Line
+                    key={player.id}
+                    type="monotone"
+                    dataKey={player.name}
+                    stroke={PLAYER_COLORS[index % PLAYER_COLORS.length]}
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
         {hasWinner && (
           <motion.div 

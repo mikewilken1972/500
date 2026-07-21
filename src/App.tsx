@@ -11,10 +11,16 @@ import { Player, Round, GameState } from './types';
 import { db } from './lib/firebase';
 import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 
-const GAME_DOC_ID = 'active_game';
+const STORAGE_KEY = '500_current_game_id';
 
 export default function App() {
+  const [currentGameId, setCurrentGameId] = useState<string | null>(() => {
+    return localStorage.getItem(STORAGE_KEY);
+  });
+
   const [gameState, setGameState] = useState<GameState>({
+    id: '',
+    name: '',
     players: [],
     rounds: [],
     status: 'setup'
@@ -24,19 +30,37 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'games', GAME_DOC_ID), (docSnap) => {
+    if (!currentGameId) {
+      setGameState({
+        id: '',
+        name: '',
+        players: [],
+        rounds: [],
+        status: 'setup'
+      });
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const unsub = onSnapshot(doc(db, 'games', currentGameId), (docSnap) => {
       if (docSnap.exists()) {
         setGameState(docSnap.data() as GameState);
+      } else {
+        // Game might have been deleted
+        setCurrentGameId(null);
+        localStorage.removeItem(STORAGE_KEY);
       }
       setLoading(false);
     });
 
     return () => unsub();
-  }, []);
+  }, [currentGameId]);
 
   const updateFirebase = async (newState: GameState) => {
+    if (!newState.id) return;
     try {
-      await setDoc(doc(db, 'games', GAME_DOC_ID), {
+      await setDoc(doc(db, 'games', newState.id), {
         ...newState,
         updatedAt: serverTimestamp()
       });
@@ -45,23 +69,29 @@ export default function App() {
     }
   };
 
-  const handleStart = (players: Player[]) => {
+  const handleStart = (players: Player[], gameName: string) => {
+    const gameId = Date.now().toString();
     const newState: GameState = {
+      id: gameId,
+      name: gameName,
       players,
       rounds: [],
       status: 'playing'
     };
+    setCurrentGameId(gameId);
+    localStorage.setItem(STORAGE_KEY, gameId);
     updateFirebase(newState);
   };
 
+  const handleSelectGame = (gameId: string) => {
+    setCurrentGameId(gameId);
+    localStorage.setItem(STORAGE_KEY, gameId);
+  };
+
   const handleReset = () => {
-    if (confirm('Er du sikker på, at du vil slette spillet og starte forfra?')) {
-      const newState: GameState = {
-        players: [],
-        rounds: [],
-        status: 'setup'
-      };
-      updateFirebase(newState);
+    if (confirm('Er du sikker på, at du vil afslutte dette spil og gå til hovedmenuen? (Spillet slettes ikke fra historikken)')) {
+      setCurrentGameId(null);
+      localStorage.removeItem(STORAGE_KEY);
     }
   };
 
@@ -102,11 +132,21 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 overflow-hidden">
       <header className="bg-slate-900 text-white p-6 flex justify-between items-center shadow-lg shrink-0">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-xl">5</div>
+          <div 
+            className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center font-bold text-xl cursor-pointer hover:bg-indigo-400 transition-colors"
+            onClick={() => {
+              setCurrentGameId(null);
+              localStorage.removeItem(STORAGE_KEY);
+            }}
+          >
+            5
+          </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight uppercase">Pointtavle: 500</h1>
+            <h1 className="text-xl font-bold tracking-tight uppercase">
+              {gameState.status === 'playing' ? gameState.name : '500 Pointtavle'}
+            </h1>
             <p className="text-xs text-slate-400 font-mono uppercase tracking-widest">
-              Session aktiv • {gameState.players.length} spillere
+              {gameState.status === 'playing' ? `Aktivt spil • ${gameState.players.length} spillere` : 'Velkommen'}
             </p>
           </div>
         </div>
@@ -117,7 +157,7 @@ export default function App() {
                 onClick={handleReset}
                 className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded border border-slate-700 text-sm font-medium transition-colors"
               >
-                Nulstil
+                Menu
               </button>
               <button 
                 onClick={() => setIsAddingRound(true)}
@@ -132,8 +172,8 @@ export default function App() {
 
       <main className="flex-1 overflow-hidden relative">
         {gameState.status === 'setup' ? (
-          <div className="h-full flex items-center justify-center p-4">
-            <Setup onStart={handleStart} />
+          <div className="h-full overflow-y-auto py-12 px-4">
+            <Setup onStart={handleStart} onSelectGame={handleSelectGame} />
           </div>
         ) : (
           <ScoreBoard 
@@ -156,8 +196,8 @@ export default function App() {
 
       <footer className="bg-white border-t border-slate-200 p-4 flex justify-between items-center text-slate-500 text-xs font-medium shrink-0">
         <div className="flex gap-6">
-          <span>Total Runder: {gameState.rounds.length}</span>
-          <span>Spillere: {gameState.players.length}</span>
+          <span>{gameState.status === 'playing' ? `Runder: ${gameState.rounds.length}` : 'Klar til spil'}</span>
+          <span>{gameState.players.length > 0 ? `Spillere: ${gameState.players.length}` : 'Ingen spillere valgt'}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> 
