@@ -1,0 +1,8 @@
+{
+  "name": "500 Pointtavle",
+  "description": "En enkel og elegant app til at holde styr på point i kortspillet 500.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
